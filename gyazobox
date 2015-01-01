@@ -1,0 +1,128 @@
+#!/usr/bin/env ruby
+# -*- coding: utf-8 -*-
+#
+# ファイルやWebページ情報をGyazoで管理できるようにするシステム
+#
+# % gyazobox
+#   現在見ているWebページのURLとタイトルを取得し、Gyazoった
+#   データと一緒に格納する
+#
+# % gyazobox filename
+#   ファイルをWebにアップし、ファイル内容をGyazoり、
+#   GyazoデータにURLやコメントを登録する
+#
+# これにより登録されたデータは芋蔓的に検索できるようになる。
+#
+# Toshiyuki Masui 2015/01/01 18:50:15
+#
+
+require 'nokogiri'
+require 'httparty'
+require 'nkf'
+require 'gyazo'
+
+# 引数が無いときはブックマークする
+file = ARGV.shift
+
+if file then
+  #
+  # 指定されたファイルを開く
+  #
+  system "open #{file}"
+else
+  #
+  # 現在のコピーバッファの値を知る
+  #
+  system "echo '' | pbcopy"
+  buffer = `pbpaste`
+  buffer.chomp!
+  #
+  # デフォルトブラウザを知る
+  #
+  line = `defaults read com.apple.LaunchServices | grep -C3 'LSHandlerURLScheme = http;' | grep LSHandlerRoleAll | uniq`
+  line =~ /"(.*)"/
+  id = $1
+  browser = 
+    case id
+    when /safari/i then "Safari"
+    when /chrome/i then "Chrome"
+    when /opera/i then "Opera"
+    else "Firefox"
+    end
+  #
+  # ブラウザをアクティブにしてCmd-L/Cmd-Cを送ってURLを取得
+  #
+  system "osascript -e '
+tell application \"#{browser}\" to activate
+tell application \"System Events\" to tell process \"#{browser}\"
+  keystroke \"l\" using command down
+  delay 0.2
+  keystroke \"c\" using command down
+end tell'"
+  #
+  # 時間待ちしながらコピーされたURLを得る
+  #
+  starttime = Time.now.to_i
+  page_url = ''
+  while true do
+    page_url = `pbpaste`
+    page_url.chomp!
+    break if page_url != buffer
+    exit if Time.now.to_i - starttime > 5 # 5秒たったら終了
+    puts page_url
+    sleep 0.3
+  end
+  #
+  # ページのタイトルを取得
+  # 文字コードのせいで(?)失敗することがある (#8)
+  #
+  html = HTTParty.get(page_url).body
+  html = NKF.nkf('-w',NKF.nkf('-j',html))
+  page_title = Nokogiri::parse(html).xpath('//title').text
+  page_title.gsub!(/"/,'\\"')
+  page_title.gsub!(/\'/,"\\\\'")
+end
+
+#
+# ファイルの一部をGyazoらせる
+#
+tmpfile = "/tmp/image_upload#{$$}.png"
+system "screencapture -i \"#{tmpfile}\""
+exit if !File.exist?(tmpfile)
+gyazo = Gyazo::Client.new
+gyazo_url = gyazo.upload(tmpfile)
+File.delete(tmpfile)
+gyazo_url =~ /[0-9a-f]{32}/
+gyazo_id = $&
+
+comment = ''
+if file
+  #
+  # 指定されたファイルをアップロード
+  #
+  require 'digest/md5'
+  
+  hash = Digest::MD5.new.update(File.read(file)).to_s
+  ext = (file =~ /(\.\w+)$/ ? $& : '')
+  system "/usr/bin/scp #{file} masui.sfc.keio.ac.jp:/Users/masui/Gyazz/public/upload/#{hash}#{ext}"
+  system "/usr/bin/ssh masui.sfc.keio.ac.jp chmod 644 /Users/masui/Gyazz/public/upload/#{hash}#{ext}"
+
+  comment = <<EOF
+#{gyazo_id}
+ http://gyazz.masuilab.org/upload/#{hash}#{ext}
+EOF
+else
+  comment = <<EOF
+#{gyazo_id}
+ #{page_url}
+ #{page_title}
+EOF
+end
+
+#
+# ファイルのコメント編集モードに移行
+#
+File.open("/Users/masui/GyazoLink/bin/custom.txt","a"){ |f|
+  f.print comment
+}
+system "open /Users/masui/GyazoLink/bin/custom.txt"
