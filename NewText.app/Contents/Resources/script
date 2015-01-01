@@ -1,0 +1,5 @@
+#!/bin/sh
+
+cp /Users/masui/template/template.txt /tmp
+open -a /Applications/TextEdit.app /tmp/template.txt
+

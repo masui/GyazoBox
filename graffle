@@ -1,0 +1,4 @@
+#!/bin/sh
+
+cp /Users/masui/template/template.graffle /tmp
+open /tmp/template.graffle

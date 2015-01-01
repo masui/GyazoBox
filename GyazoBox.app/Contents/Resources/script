@@ -24,12 +24,16 @@ require 'gyazo'
 # 引数が無いときはブックマークする
 file = ARGV.shift
 
-if file then
+if file then # ファイルをDrag&Dropした場合
   #
   # 指定されたファイルを開く
   #
-  system "open #{file}"
-else
+  if file =~ /\.txt$/ then
+    system "open -a /Applications/TextEdit.app #{file}"
+  else
+    system "open #{file}"
+  end
+else # ファイルを指定しなかった場合 => Webページをブックマークする
   #
   # 現在のコピーバッファの値を知る
   #
