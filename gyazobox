@@ -111,8 +111,15 @@ if file
   system "/usr/bin/scp #{file} masui.sfc.keio.ac.jp:/Users/masui/Gyazz/public/upload/#{hash}#{ext}"
   system "/usr/bin/ssh masui.sfc.keio.ac.jp chmod 644 /Users/masui/Gyazz/public/upload/#{hash}#{ext}"
 
+  time1 = File.mtime(file).strftime('%Y%m%d%H%M%S')
+  time2 = File.mtime(file).strftime('%Y%m%d')
+  time3 = File.mtime(file).strftime('%Y%m')
+
   comment = <<EOF
 #{gyazo_id}
+ #{time1}
+ #{time2}
+ #{time3}
  http://gyazz.masuilab.org/upload/#{hash}#{ext}
 EOF
 else
